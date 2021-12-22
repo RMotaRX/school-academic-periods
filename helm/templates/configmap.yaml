@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "school-academic-periods.fullname" . }}-configmap
+data:
+  JAVA_OPTS: {{ .Values.configmap.java_opts }}
+  SCHOOL_ACADEMIC_PERIODS_MS_PORT: {{ .Values.configmap.school_academic_periods_ms_port }}
+  SCHOOL_ACADEMIC_PERIODS_MS_NAME: {{ .Values.configmap.applications_ms_name }}
+  URL_MS_EDTECHS: {{ .Values.configmap.url_ms_edtechs }}
+  URL_MS_CATALOGS: {{ .Values.configmap.url_ms_catalogs }}
+  URL_MS_EDUCATIONAL_AXES: {{ .Values.configmap.url_ms_educational_axes }}
+  URL_ORGANIZATIONS: {{ .Values.configmap.url_ms_organizations }}
+  URL_MS_SCHOOL_CLASS: {{ .Values.configmap.url_ms_school_class }}
+  DEFAULT_PAGE_ACCEPTABLE_RANGE: {{ .Values.configmap.default_page_acceptable_range }}
+  SPRINGDOC_SWAGGER_UI_PATH: {{ .Values.configmap.springdoc_swagger_ui_path }}
+  SPRINGDOC_SWAGGER_UI_ENABLE: {{ .Values.configmap.springdoc_swagger_ui_anable }}
+  SPRINGDOC_APIDOCS_PATH: {{ .Values.configmap.springdoc_apidocs_path }}
+  SPRINGDOC_APIDOCS_ENABLE: {{ .Values.configmap.springdoc_apidocs_enable }}

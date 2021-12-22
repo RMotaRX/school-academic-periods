@@ -1,0 +1,120 @@
+variables:
+  AWS_REGISTRY: "751178672067.dkr.ecr.us-east-2.amazonaws.com/school-academic-periods"
+  SONAR_HOST_URL: "http://sonarqube-sonarqube-lts.sonarqube:9000"
+  SONAR_PROJECT_KEY: "school-academic-periods"
+  JAVA_BINARIES: "./src/"
+  #SONAR_TOKEN: $SONAR_TOKEN # Definido nas configurações do projeto
+  #AWS_ACCESS_KEY_ID_DEV: $AWS_ACCESS_KEY_ID_DEV # Definido nas configurações do projeto
+  #AWS_SECRET_ACCESS_KEY_DEV: $AWS_SECRET_ACCESS_KEY_DEV # Definido nas configurações do projeto
+  #KUBECONFIG_DEV: $KUBECONFIG_DEV # Definido nas configurações do projeto e atualmente usado implicitamente devido ao bug https://gitlab.com/gitlab-org/gitlab/-/issues/295627
+
+stages:
+  - tests # tests da aplicação
+  - qualitygate # avaliação do sonarqube
+  - kaniko # build da imagem e publicação no ECR
+  - deploy # deploy no kubernetes
+
+# run on commit and merge request from feature to brach
+unit:
+  stage: tests
+  image: 751178672067.dkr.ecr.us-east-2.amazonaws.com/maven:3.8.3-adoptopenjdk-11
+  variables:
+    MAVEN_OPTS: "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true"
+    MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+  script:
+    - mvn $MAVEN_CLI_OPTS test
+  only:
+    - merge_requests
+    - branches
+
+# run on commit and merge request from feature to brach
+lint:
+  stage: tests
+  image: majisti/koolbelt
+  script:
+    - helm lint ./helm 
+  only:
+    - merge_requests
+    - branches
+
+mvn-qualitygate:
+  stage: qualitygate
+  image: 751178672067.dkr.ecr.us-east-2.amazonaws.com/maven:3.8.3-adoptopenjdk-11
+  script:
+    - mvn verify sonar:sonar -Dsonar.url=$SONAR_HOST_URL -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.java.binaries=$JAVA_BINARIES -Dsonar.qualitygate.wait=true -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+  only:
+    - merge_requests
+    - branches
+
+kaniko-check-build:
+  stage: kaniko
+  image:
+    name: "gcr.io/kaniko-project/executor:debug"
+    entrypoint: ["./"]
+  script:
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --no-push --destination $AWS_REGISTRY:$CI_PIPELINE_ID --destination $AWS_REGISTRY:latest
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# run on merge request
+kaniko:
+  stage: kaniko
+  image:
+    name: "gcr.io/kaniko-project/executor:debug"
+    entrypoint: ["./"]
+  script:
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $AWS_REGISTRY:$CI_PIPELINE_ID --destination $AWS_REGISTRY:latest
+  rules:
+    # - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "qa"'
+
+# run on merge request
+deploy-dev:
+  stage: deploy
+  image: majisti/koolbelt
+  # environment:
+  #   name: deploy-dev
+  variables:
+      # KUBECONFIG: KUBECONFIG_DEV
+      AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY_DEV
+      AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID_DEV 
+  script:
+    - apk update
+    - apk add curl
+    - curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator
+    - chmod +x ./aws-iam-authenticator
+    - mv aws-iam-authenticator /usr/local/bin/kubectl /usr/local/bin/helm /bin
+    - KUBECONFIG=$KUBECONFIG_DEV kubectl get nodes
+    - KUBECONFIG=$KUBECONFIG_DEV helm upgrade -f ./helm/values-dev.yaml --install school-academic-periods ./helm/ -n default --set image.tag=$CI_PIPELINE_ID --set secret.mongo_uri=$MONGO_DB_DEV
+    # - KUBECONFIG=$KUBECONFIG_DEV kubectl get pods -A
+    # - sleep 30s
+    # - KUBECONFIG=$KUBECONFIG_DEV helm uninstall suites -n default
+  rules:
+    # - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+# run on merge request
+deploy-qa:
+  stage: deploy
+  image: majisti/koolbelt
+  # environment:
+  #   name: deploy-dev
+  variables:
+      # KUBECONFIG: KUBECONFIG_DEV
+      AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY_QA
+      AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID_QA 
+  script:
+    - apk update
+    - apk add curl
+    - curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator
+    - chmod +x ./aws-iam-authenticator
+    - mv aws-iam-authenticator /usr/local/bin/kubectl /usr/local/bin/helm /bin
+    - KUBECONFIG=$KUBECONFIG_QA kubectl get nodes
+    - KUBECONFIG=$KUBECONFIG_QA helm upgrade -f ./helm/values-qa.yaml --install school-academic-periods ./helm/ -n microservices-educacional --set image.tag=$CI_PIPELINE_ID --set secret.mongo_uri=$MONGO_DB_QA
+    # - KUBECONFIG=$KUBECONFIG_DEV kubectl get pods -A
+    # - sleep 30s
+    # - KUBECONFIG=$KUBECONFIG_DEV helm uninstall suites -n default
+  rules:
+    # - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "qa"'

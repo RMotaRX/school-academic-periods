@@ -1,0 +1,69 @@
+server:
+  port: ${SCHOOL_ACADEMIC_PERIODS_MS_PORT}
+
+application:
+  name: ${SCHOOL_ACADEMIC_PERIODS_MS_NAME}
+
+spring:
+  data:
+    mongodb:
+      uri: ${MONGO_URI}
+      auto-index-creation: true
+
+logging:
+  level:
+    com.educacional.schoolacademicperiods.infra.client: DEBUG
+
+feign:
+  client:
+    config:
+      default:
+        loggerLevel: ${FEIGN_CLIENT_CONFIG_LOGGERLEVEL}
+
+rest:
+  url:
+    ms:
+      edtechs: ${URL_MS_EDTECHS:http://localhost}
+      catalog: ${URL_MS_CATALOG:http://localhost}
+      educational-axes: ${URL_MS_EDUCATIONAL_AXES}
+      organizations: ${URL_ORGANIZATIONS}
+      school-class: ${URL_MS_SCHOOL_CLASS}
+
+  pageable:
+    default:
+      acceptable-range: ${DEFAULT_PAGE_ACCEPTABLE_RANGE:30}
+
+springdoc:
+  swagger-ui:
+    path: ${SPRINGDOC_SWAGGER_UI_PATH:/swagger-ui}
+    enable: ${SPRINGDOC_SWAGGER_UI_ENABLE:true}
+    disable-swagger-default-url: true
+  api-docs:
+    path: ${SPRINGDOC_APIDOCS_PATH:/api-docs}
+    enable: ${SPRINGDOC_APIDOCS_ENABLE:true}
+
+swagger-config:
+  version: 1.0.0
+  title: API Applications - Educacional Positivo
+  description: APIs responsible for managing all informations about applications
+  servers:
+    develop:
+      url: https://dev-lb.educacional.com/applications
+      description: Develop
+    staging:
+      url: https://stg-lb.educacional.com/applications
+      description: Homologation / Staging
+    qa:
+      url: https://qa-lb.educacional.com/applications
+      description: QA
+    production:
+      url: https://prd-lb.educacional.com/applications
+      description: Production
+  responses:
+    error:
+      400: Problem with the data in the request
+      403: Request violetes some authorization rule
+      404: Resource requested not found
+      422: Request violetes some business rule
+      500: Some unexpected error has ocorred
+      502: Service is unavaible at the moment
